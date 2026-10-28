@@ -1,0 +1,27 @@
+# Example masking rules for the ingestion gateway (Part C). Illustrative only.
+# Behaviour: fail closed. If a chunk cannot be processed, drop it and tell the analyst.
+fail_mode: closed
+placeholder_style: "<{TYPE}_{N}>"      # same value -> same placeholder within one incident
+mapping_store: vault                    # token-to-value map never sent to the model
+rules:
+  - {name: cloud_access_key,    type: SECRET, kind: pattern, note: "provider-specific key formats"}
+  - {name: jwt_or_bearer_token, type: SECRET, kind: pattern}
+  - {name: private_key_header,  type: SECRET, kind: pattern, pattern: "-----BEGIN [A-Z ]*PRIVATE KEY-----"}
+  - {name: connection_string,   type: SECRET, kind: pattern, note: "scheme://user:password@host"}
+  - {name: high_entropy_string, type: SECRET, kind: entropy, min_length: 20, threshold: 4.0}
+  - {name: payment_card,        type: CARD,   kind: pattern_plus_checksum, checksum: luhn}
+  - {name: aadhaar,             type: ID,     kind: pattern_plus_checksum, checksum: verhoeff}
+  - {name: pan,                 type: ID,     kind: pattern, pattern: "[A-Z]{5}[0-9]{4}[A-Z]"}
+  - {name: email,               type: EMAIL,  kind: pattern}
+  - {name: phone,               type: PHONE,  kind: pattern}
+  - {name: ip_address,          type: IP,     kind: pattern}
+  - {name: person_or_address,   type: PERSON, kind: ner_model}
+field_denylist: [password, passwd, secret, token, authorization, api_key, card_number, cvv]
+untrusted_wrapper: "<untrusted_data source=\"{SOURCE}\"> ... </untrusted_data>"
+targets:
+  secrets_recall: 0.995
+  pii_recall: 0.98
+tests:
+  - synthetic_labelled_corpus
+  - weekly_canary_secrets
+  - monthly_sampling_review

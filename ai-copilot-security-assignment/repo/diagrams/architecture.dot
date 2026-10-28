@@ -1,0 +1,43 @@
+digraph ARCH {
+  rankdir=TB; fontname="Helvetica"; nodesep=0.3; ranksep=0.6; compound=true;
+  node [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="white"];
+  edge [fontname="Helvetica", fontsize=10];
+  label="Figure 2. Final architecture with security controls (C1 to C12)"; labelloc=t; fontsize=14;
+
+  subgraph cluster_in { label="Sources (untrusted content)"; style="dashed,filled"; fillcolor="#fde8e8"; color="#c0392b";
+    src [label="150 app log sources\nC1: structured logging, secret-free by design"];
+    itsm [label="Ticketing tool\nC2: HMAC-signed webhooks, scoped API user"]; }
+  subgraph cluster_lp { label="Log platform VPC / VNet"; style="dashed,filled"; fillcolor="#eef3fb"; color="#2e5aac";
+    lp [label="Central log platform\nC3: read-only API token per app group\nencrypted at rest (KMS)"]; }
+  subgraph cluster_cp { label="Copilot VPC (private subnets, default-deny)"; style="dashed,filled"; fillcolor="#e8f6ee"; color="#1e8449";
+    gw [label="Masking gateway (fail-closed)\nC4: secret + PII masking, injection tagging"];
+    an [label="Analyzer service (READ-ONLY)\nC5: separate identity, no write scopes"];
+    kb [label="Incident KB\nC6: signed snapshots, write via review only"];
+    fw [label="Output validator\nC7: JSON schema, enum runbook IDs"];
+    pe [label="Policy engine + approval\nC8: deterministic tier rules,\nblast-radius caps, kill switch"];
+    con [label="Console / API\nC9: SSO+MFA, RBAC, per-call authz, rate limits"];
+    aud [label="Audit log\nC10: append-only, hash-chained, WORM bucket", fillcolor="#f4ecf7"];
+    vault [label="Vault / HSM-backed KMS\nC11: short-lived creds, rotation", fillcolor="#f4ecf7"]; }
+  subgraph cluster_m { label="Model zone"; style="dashed,filled"; fillcolor="#fef9e7"; color="#b7950b";
+    llm [label="LLM private endpoint\nPrivateLink, zero retention,\nno training on our data, DLP on responses"]; }
+  subgraph cluster_p { label="Production change zone (separate network and account)"; style="dashed,filled"; fillcolor="#fbeee6"; color="#a04000";
+    ex [label="Executor (WRITE identity)\nC12: signed runbooks, parameter checks,\nrollback, per-action credentials"];
+    prod [label="Production systems"]; }
+  siem [label="SIEM and alerting\n(detections on copilot behaviour)", fillcolor="#f2f3f4"];
+
+  src -> lp [label="TLS 1.2+"];
+  lp -> gw [label="mTLS"];
+  itsm -> gw [label="TLS + signature"];
+  gw -> an [label="masked data"];
+  an -> llm [label="mTLS, private link", dir=both];
+  an -> kb [dir=both];
+  an -> fw [label="proposal"];
+  fw -> pe [label="valid JSON only"];
+  pe -> con [dir=both, label="approvals"];
+  pe -> ex [label="signed job"];
+  vault -> ex [style=dotted, label="JIT creds"];
+  ex -> prod [label="runbook"];
+  ex -> itsm [label="update ticket"];
+  pe -> aud [style=dotted]; ex -> aud [style=dotted]; an -> aud [style=dotted];
+  aud -> siem [style=dotted];
+}

@@ -1,0 +1,50 @@
+digraph DFD {
+  rankdir=TB; fontname="Helvetica"; nodesep=0.35; ranksep=0.7; compound=true;
+  node [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="white"];
+  edge [fontname="Helvetica", fontsize=10];
+  label="Figure 1. Data flow diagram with trust zones (dashed boxes = trust boundaries)"; labelloc=t; fontsize=14;
+
+  subgraph cluster_z0 { label="Zone 0: Untrusted / external input"; style="dashed,filled"; fillcolor="#fde8e8"; color="#c0392b";
+    req [label="Employees and end users\n(raise tickets)"];
+    ext [label="External senders and\nthird-party webhooks"]; }
+  subgraph cluster_z1 { label="Zone 1: Application estate (150 apps)"; style="dashed,filled"; fillcolor="#fff4e0"; color="#d68910";
+    src [label="Application log sources\n(content is untrusted)"]; }
+  subgraph cluster_z2 { label="Zone 2: Central log platform"; style="dashed,filled"; fillcolor="#eef3fb"; color="#2e5aac";
+    lp [label="Log platform\n(search / SIEM)"]; }
+  subgraph cluster_z5 { label="Zone 5: ITSM SaaS"; style="dashed,filled"; fillcolor="#eef3fb"; color="#2e5aac";
+    itsm [label="Ticketing tool\n(ServiceNow / JSM)"]; }
+  subgraph cluster_z3 { label="Zone 3: Copilot platform (our system)"; style="dashed,filled"; fillcolor="#e8f6ee"; color="#1e8449";
+    gw [label="Ingestion and\nmasking gateway"];
+    an [label="Analyzer\n(READ-ONLY identity)"];
+    kb [label="Incident knowledge base\n(vector store)"];
+    pe [label="Policy engine and\napproval service"];
+    con [label="Web console / API"];
+    aud [label="Audit log (WORM)", fillcolor="#f4ecf7"];
+    vault [label="Secrets vault", fillcolor="#f4ecf7"]; }
+  subgraph cluster_z4 { label="Zone 4: Model"; style="dashed,filled"; fillcolor="#fef9e7"; color="#b7950b";
+    llm [label="LLM\n(private cloud endpoint)"]; }
+  subgraph cluster_z6 { label="Zone 6: Production change zone"; style="dashed,filled"; fillcolor="#fbeee6"; color="#a04000";
+    ex [label="Executor\n(WRITE identity, signed runbooks)"];
+    prod [label="Production systems"]; }
+  subgraph cluster_zs { label="Internal staff (SSO + MFA)"; style="dashed,filled"; fillcolor="#f2f3f4"; color="#566573";
+    eng [label="On-call engineers\nand approvers"]; }
+
+  req -> itsm [label="1 ticket text"];
+  ext -> itsm [label="2 emails / webhooks"];
+  src -> lp [label="3 raw logs"];
+  lp -> gw [label="4 log query results"];
+  itsm -> gw [label="5 ticket data (signed webhook)"];
+  gw -> an [label="6 masked, tagged data"];
+  an -> llm [label="7 masked prompt", dir=both];
+  an -> kb [label="8 retrieve similar incidents", dir=both];
+  an -> pe [label="9 proposed action (JSON)"];
+  pe -> con [label="10 approval request", dir=both];
+  con -> eng [label="11 review / approve", dir=both];
+  pe -> ex [label="12 signed approved job"];
+  ex -> prod [label="13 run approved runbook"];
+  ex -> itsm [label="14 update / close ticket"];
+  vault -> ex [label="short-lived creds", style=dotted];
+  pe -> aud [label="15 every event", style=dotted];
+  ex -> aud [style=dotted];
+  an -> aud [style=dotted];
+}

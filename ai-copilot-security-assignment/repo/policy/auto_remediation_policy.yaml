@@ -1,0 +1,52 @@
+# Example policy for the policy engine (Part E). Illustrative, not production-ready.
+# The policy engine (deterministic code) applies these rules. The LLM never decides the tier.
+version: 1
+default_decision: human_only          # anything not matched below goes to a person
+global_caps:
+  max_auto_actions_per_hour: 20
+  max_auto_actions_per_app_per_hour: 3
+  min_minutes_between_changes_same_service: 15
+  circuit_breaker:
+    rollbacks_in_window: 2
+    window_minutes: 60
+    on_trip: suggest_only
+kill_switch:
+  enabled: true
+  reenable_requires: two_person_approval
+confidence:
+  auto_min: 0.90
+  suggest_min: 0.70
+  runbook_min_success_rate: 0.95
+  runbook_min_runs: 20
+blast_radius:
+  max_hosts: 1
+  max_percent_of_service_instances: 5
+runbooks:                             # allowlist; each runbook is signed and version controlled
+  - id: restart_stateless_service
+    risk: low
+    reversible: true
+    tier_if_ci_criticality: {low: auto, medium: auto, high: approval, critical: approval}
+    params:
+      service: {type: string, pattern: "^[a-z0-9-]{3,40}$", must_belong_to_ticket_app: true}
+  - id: clear_temp_files
+    risk: low
+    reversible: true
+    tier_if_ci_criticality: {low: auto, medium: auto, high: approval, critical: approval}
+  - id: rerun_failed_batch_job
+    risk: low
+    reversible: true
+    tier_if_ci_criticality: {low: auto, medium: auto, high: approval, critical: approval}
+  - id: rollback_deployment
+    risk: medium
+    reversible: true
+    tier_if_ci_criticality: {low: approval, medium: approval, high: approval, critical: approval}
+  - id: scale_service
+    risk: medium
+    reversible: true
+    tier_if_ci_criticality: {low: approval, medium: approval, high: approval, critical: approval}
+force_human_only_if:
+  - injection_flag: true
+  - category: [security, privileged_access, firewall, data_change, deletion]
+  - confidence_below: 0.70
+  - first_time_fix_seen: true
+  - change_freeze: true
